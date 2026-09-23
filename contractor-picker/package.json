@@ -9,7 +9,9 @@
     "start": "node --env-file-if-exists=.env server/index.js",
     "dev": "node --watch --env-file-if-exists=.env server/index.js",
     "test": "node --test",
-    "check": "node --check server/index.js && node --check public/app.js && node --test"
+    "check": "node --check server/index.js && node --check public/app.js && node --test",
+    "check:ai-key": "node --env-file=.env tools/check-openai-key.mjs",
+    "check:ai": "node --env-file=.env tools/check-assistant.mjs"
   },
   "dependencies": {
     "csv-parse": "^6.1.0",

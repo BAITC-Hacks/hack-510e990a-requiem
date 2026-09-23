@@ -25,8 +25,8 @@
       <div class="hero-copy">
         <p class="eyebrow"><span class="eyebrow-line"></span>ПОДБОР ПОДРЯДЧИКОВ ДЛЯ СОБЫТИЯ</p>
         <h1 id="page-title">Подберите подрядчика<br><em>для вашего события.</em></h1>
-        <p class="lead">Укажите условия — мы проверим город, дату, формат, бюджет и доступность, а затем покажем до трёх вариантов с понятным объяснением.</p>
-        <div class="hero-proof" aria-label="Что делает сервис"><span><strong>66</strong> профилей</span><span><strong>3</strong> варианта в выдаче</span><span><strong>100%</strong> условий проверяются</span></div>
+        <p class="lead">Опишите задачу своими словами или заполните форму — мы проверим условия и покажем до трёх вариантов с понятным объяснением.</p>
+        <div class="hero-proof" aria-label="Что делает сервис"><span><strong>66</strong> профилей</span><span><strong>до 3</strong> вариантов</span><span><strong>7</strong> проверяемых условий</span></div>
       </div>
       <aside class="calendar-note" aria-label="Период доступности каталога">
         <span class="calendar-icon" aria-hidden="true"><small>2026</small><strong>23</strong><small>СЕН</small></span>
@@ -36,16 +36,25 @@
 
     <section class="search-panel" aria-labelledby="search-title">
       <div class="panel-heading"><div><p class="step-label"><span class="step">01</span> УСЛОВИЯ СОБЫТИЯ</p><h2 id="search-title">Соберём запрос за минуту</h2></div><p class="required-hint"><span aria-hidden="true">●</span> Обязательные поля</p></div>
-      <div class="form-guide" role="note"><span class="guide-icon" aria-hidden="true">i</span><span><strong>Сначала — обязательные условия.</strong> Язык и длительность можно добавить, если они важны для события.</span></div>
+      <section class="assistant-panel" aria-labelledby="assistant-title">
+        <div class="assistant-heading"><span class="assistant-mark" aria-hidden="true">AI</span><div><h3 id="assistant-title">Опишите задачу своими словами</h3><p>Ассистент заполнит форму, а сервер перепроверит каждое условие.</p></div></div>
+        <label class="sr-only" for="assistant-input">Сообщение AI-ассистенту</label>
+        <div class="assistant-compose">
+          <textarea id="assistant-input" maxlength="1000" rows="2" placeholder="Например: нужен ведущий в Алматы на корпоратив 10 октября, до 1,5 млн ₸, на русском"></textarea>
+          <button id="assistant-send" type="button"><span id="assistant-send-label">Разобрать запрос</span><span aria-hidden="true">→</span></button>
+        </div>
+        <div id="assistant-response" class="assistant-response" role="status" aria-live="polite" hidden><p id="assistant-reply"></p><div id="assistant-updates" class="assistant-updates"></div><div id="assistant-suggestions" class="assistant-suggestions"></div></div>
+      </section>
+      <div class="form-guide" role="note"><span class="guide-icon" aria-hidden="true">i</span><span><strong>Проверьте распознанные условия.</strong> Форму всегда можно заполнить или изменить вручную.</span></div>
       <form id="search" novalidate>
         <fieldset id="search-fields" disabled>
           <legend class="sr-only">Параметры подбора</legend>
           <div class="main-fields">
             <label class="field field-city"><span>Город <i aria-hidden="true">*</i></span><select id="city" name="city" required aria-describedby="city-error"></select><span class="field-error" id="city-error"></span></label>
-            <label class="field field-date"><span>Дата мероприятия <i aria-hidden="true">*</i></span><input id="date" name="date" type="date" value="2026-10-10" min="2026-09-23" max="2026-12-31" required aria-describedby="date-error"><span class="field-hint">Доступность из каталога</span><span class="field-error" id="date-error"></span></label>
+            <label class="field field-date"><span>Дата мероприятия <i aria-hidden="true">*</i></span><input id="date" name="date" type="date" min="2026-09-23" max="2026-12-31" required aria-describedby="date-error"><span class="field-hint">Доступность из каталога</span><span class="field-error" id="date-error"></span></label>
             <label class="field field-format"><span>Формат <i aria-hidden="true">*</i></span><select id="event_format" name="event_format" required aria-describedby="event_format-error"></select><span class="field-error" id="event_format-error"></span></label>
             <label class="field field-category"><span>Кого ищем <i aria-hidden="true">*</i></span><select id="category" name="category" required aria-describedby="category-error"></select><span class="field-error" id="category-error"></span></label>
-            <label class="field field-budget"><span>Бюджет на подрядчика <i aria-hidden="true">*</i></span><div class="input-unit currency"><input id="budget" name="budget" type="number" inputmode="numeric" min="1" max="1000000000" step="1" value="1500000" required aria-describedby="budget-error"><span aria-hidden="true">₸</span></div><span class="field-hint">Начальная цена, не итоговая смета</span><span class="field-error" id="budget-error"></span></label>
+            <label class="field field-budget"><span>Бюджет на подрядчика <i aria-hidden="true">*</i></span><div class="input-unit currency"><input id="budget" name="budget" type="number" inputmode="numeric" min="1" max="1000000000" step="1" placeholder="Например, 1500000" required aria-describedby="budget-error"><span aria-hidden="true">₸</span></div><span class="field-hint">Начальная цена, не итоговая смета</span><span class="field-error" id="budget-error"></span></label>
           </div>
           <div class="optional-row">
             <div class="optional-heading"><span class="optional-icon" aria-hidden="true">+</span><div><strong>Уточнить подбор</strong><span>Необязательно</span></div></div>
@@ -67,6 +76,8 @@
       <div id="query-summary" class="query-summary"></div>
       <div id="filter-summary" class="filter-summary" hidden></div>
       <div id="cards" class="cards"></div>
+      <div id="result-actions" class="result-actions" hidden><button id="compare-results" class="secondary-button" type="button">Сравнить показанные варианты</button></div>
+      <div id="comparison-output" class="comparison-output" role="status" aria-live="polite" hidden></div>
       <div id="empty-state" class="empty-state" hidden><span class="empty-symbol" aria-hidden="true">⌕</span><h3 id="empty-title"></h3><p id="empty-message"></p><button id="edit-query" class="secondary-button" type="button">Изменить условия</button></div>
       <p id="mode-note" class="mode-note"></p>
     </section>

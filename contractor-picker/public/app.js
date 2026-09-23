@@ -15,6 +15,11 @@ let meta;
 let requestController;
 let requestNumber = 0;
 let previousResult;
+let currentResult;
+let assistantController;
+let assistantRequestNumber = 0;
+let stateRevision = 0;
+const fieldLabels = { city: 'город', date: 'дата', event_format: 'формат', category: 'категория', budget: 'бюджет', language: 'язык', duration_hours: 'длительность' };
 
 function element(tag, className, text) {
   const node = document.createElement(tag);
@@ -43,6 +48,62 @@ function clearError() {
 function getQuery() {
   const data = Object.fromEntries(new FormData(form));
   return { ...data, budget: Number(data.budget), duration_hours: data.duration_hours === '' ? null : Number(data.duration_hours), language: data.language || null };
+}
+
+function getDraft() {
+  const data = Object.fromEntries(new FormData(form));
+  return {
+    city: data.city || null,
+    date: data.date || null,
+    event_format: data.event_format || null,
+    category: data.category || null,
+    budget: data.budget === '' ? null : Number(data.budget),
+    language: data.language || null,
+    duration_hours: data.duration_hours === '' ? null : Number(data.duration_hours),
+  };
+}
+
+function setDraft(query = {}) {
+  for (const field of ['city', 'date', 'event_format', 'category', 'budget', 'language', 'duration_hours']) {
+    $(field).value = query[field] ?? '';
+  }
+}
+
+function formatAssistantValue(field, value) {
+  if (field === 'budget') return money(value);
+  if (field === 'date') return dateText(value);
+  if (field === 'duration_hours') return `${value} ч`;
+  return String(value);
+}
+
+function renderAssistantSuggestions(suggestions = []) {
+  const container = $('assistant-suggestions');
+  container.replaceChildren();
+  for (const suggestion of suggestions) {
+    const button = element('button', 'assistant-suggestion');
+    button.type = 'button';
+    const change = Object.entries(suggestion.changes)[0];
+    const description = change ? `${fieldLabels[change[0]]}: ${formatAssistantValue(change[0], change[1])}` : suggestion.label;
+    button.textContent = `${description} · ${suggestion.eligible} вариант(а)`;
+    button.addEventListener('click', () => {
+      for (const [field, value] of Object.entries(suggestion.changes)) $(field).value = value;
+      stateRevision++;
+      recommend(true);
+    });
+    container.append(button);
+  }
+}
+
+function showAssistantResponse(reply, updatedFields = [], query = {}, suggestions = []) {
+  $('assistant-response').hidden = false;
+  $('assistant-reply').textContent = reply;
+  const updates = $('assistant-updates');
+  updates.replaceChildren();
+  for (const field of updatedFields) {
+    if (query[field] === undefined || query[field] === null || query[field] === '') continue;
+    updates.append(element('span', 'assistant-chip', `${fieldLabels[field]}: ${formatAssistantValue(field, query[field])}`));
+  }
+  renderAssistantSuggestions(suggestions);
 }
 
 function cardView(card, index) {
@@ -83,7 +144,9 @@ function cardView(card, index) {
 
 function render(result) {
   const { counts, query, status } = result;
+  currentResult = result;
   $('cards').replaceChildren(...result.cards.map(cardView));
+  $('result-actions').hidden = result.cards.length < 2;
   $('empty-state').hidden = status === 'matched';
   const statusLabels = { matched: 'Подбор завершён', category_absent: 'Категория не найдена', no_matches: 'Нет совпадений' };
   const resultStatus = $('result-status');
@@ -137,6 +200,9 @@ function render(result) {
     not_needed: '',
   };
   $('mode-note').textContent = modes[result.explanation_mode] || '';
+  if (status === 'no_matches' && result.suggestions?.length) {
+    showAssistantResponse('Я проверил изменения, которые действительно дают варианты:', [], query, result.suggestions);
+  }
   if (previousResult && previousResult.query.date !== query.date) {
     const { date: oldDate, ...oldConditions } = previousResult.query;
     const { date: newDate, ...newConditions } = query;
@@ -146,6 +212,67 @@ function render(result) {
     }
   }
   previousResult = result;
+}
+
+async function sendAssistant(forcedMessage) {
+  const input = $('assistant-input');
+  const message = (forcedMessage ?? input.value).trim();
+  if (!message) {
+    showAssistantResponse('Опишите задачу одним сообщением — например, город, дату, категорию и бюджет.');
+    input.focus();
+    return;
+  }
+  assistantController?.abort();
+  assistantController = new AbortController();
+  const controller = assistantController;
+  const serial = ++assistantRequestNumber;
+  const revision = stateRevision;
+  const timeout = setTimeout(() => controller.abort('timeout'), 13000);
+  $('assistant-send').disabled = true;
+  $('assistant-send-label').textContent = 'Разбираю…';
+  showAssistantResponse('Понимаю запрос и сверяю условия с каталогом…');
+  try {
+    const response = await fetch('/api/assistant', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, current_query: getDraft(), state_revision: revision }),
+      signal: controller.signal,
+    });
+    const result = await response.json();
+    if (serial !== assistantRequestNumber || revision !== stateRevision || result.state_revision !== revision) return;
+    if (!response.ok) {
+      showAssistantResponse(result.message || 'Ассистент временно недоступен. Используйте форму ниже.');
+      return;
+    }
+    setDraft(result.resolved_query);
+    stateRevision++;
+    showAssistantResponse(result.reply, result.updated_fields, result.resolved_query, result.suggestions);
+    if (result.recommendation) {
+      render(result.recommendation);
+      if (forcedMessage !== undefined) {
+        $('comparison-output').textContent = result.reply;
+        $('comparison-output').hidden = false;
+      } else {
+        $('comparison-output').hidden = true;
+      }
+      $('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else if (result.missing_fields?.length) {
+      const first = result.missing_fields.find(field => $(field));
+      if (first) $(first).focus({ preventScroll: true });
+    }
+    if (forcedMessage === undefined) input.value = '';
+  } catch {
+    if (serial !== assistantRequestNumber) return;
+    showAssistantResponse(controller.signal.reason === 'timeout'
+      ? 'Ассистент не ответил вовремя. Условия можно заполнить вручную.'
+      : 'Не удалось связаться с ассистентом. Проверьте сервер и попробуйте снова.');
+  } finally {
+    clearTimeout(timeout);
+    if (serial === assistantRequestNumber) {
+      $('assistant-send').disabled = false;
+      $('assistant-send-label').textContent = 'Разобрать запрос';
+    }
+  }
 }
 
 async function recommend(shouldRevealResults = false) {
@@ -190,17 +317,36 @@ async function recommend(shouldRevealResults = false) {
 
 form.addEventListener('submit', event => { event.preventDefault(); recommend(true); });
 form.addEventListener('input', () => {
+  stateRevision++;
+  requestNumber++;
+  assistantRequestNumber++;
+  requestController?.abort();
+  assistantController?.abort();
   document.querySelectorAll('[data-preset]').forEach(b => b.classList.remove('active'));
+  if (currentResult) {
+    $('result-summary').textContent = 'Условия изменены. Обновите подбор, чтобы увидеть актуальные варианты.';
+    $('result-actions').hidden = true;
+    $('comparison-output').hidden = true;
+  }
 });
 document.querySelectorAll('[data-preset]').forEach(button => {
   button.disabled = true;
   button.addEventListener('click', () => {
     for (const [key, value] of Object.entries(presets[button.dataset.preset])) $(key).value = value;
+    stateRevision++;
     document.querySelectorAll('[data-preset]').forEach(b => b.classList.toggle('active', b === button));
     recommend(true);
   });
 });
 $('edit-query').addEventListener('click', () => { $('city').focus(); $('search').scrollIntoView({ behavior: 'smooth', block: 'center' }); });
+$('assistant-send').addEventListener('click', () => sendAssistant());
+$('assistant-input').addEventListener('keydown', event => {
+  if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+    event.preventDefault();
+    sendAssistant();
+  }
+});
+$('compare-results').addEventListener('click', () => sendAssistant('Сравни показанные варианты'));
 
 async function init() {
   try {
@@ -208,14 +354,21 @@ async function init() {
     if (!response.ok) throw new Error('Catalog unavailable');
     meta = await response.json();
     for (const [id, values] of Object.entries({ city: meta.cities, category: meta.categories, event_format: meta.event_formats, language: meta.languages })) {
+      if (id !== 'language') {
+        const placeholder = element('option', '', 'Выберите');
+        placeholder.value = '';
+        placeholder.disabled = true;
+        placeholder.selected = true;
+        $(id).append(placeholder);
+      }
       values.forEach(value => { const option = element('option', '', value); option.value = value; $(id).append(option); });
     }
     $('date').min = meta.calendar.from; $('date').max = meta.calendar.to;
     $('search-fields').disabled = false;
     document.querySelectorAll('[data-preset]').forEach(b => { b.disabled = false; });
-    for (const [key, value] of Object.entries(base)) $(key).value = value;
-    document.querySelector('[data-preset="hosts"]').classList.add('active');
-    await recommend();
+    setDraft();
+    $('result-summary').textContent = 'Опишите задачу ассистенту, выберите пример или заполните форму.';
+    $('assistant-input').focus({ preventScroll: true });
   } catch {
     $('result-summary').textContent = 'Каталог недоступен.';
     showError('Не удалось загрузить каталог. Убедитесь, что сервер запущен, и обновите страницу.');

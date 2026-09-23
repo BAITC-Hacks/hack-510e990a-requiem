@@ -65,4 +65,33 @@
 
 ## GET /api/health
 
-Возвращает status=ok, profiles и dataset_version. Не проверяет доступность OpenAI и не сообщает секреты.
+Возвращает status=ok, profiles, dataset_version и assistant_configured. Последнее поле сообщает только наличие серверной настройки ключа, не проверяет доступность OpenAI и не раскрывает секрет.
+
+## POST /api/assistant
+
+Принимает сообщение длиной 1–1000 символов, текущий черновик формы и версию состояния:
+
+```json
+{
+  "message": "А на 11 октября?",
+  "current_query": {
+    "city": "Алматы",
+    "date": "2026-10-10",
+    "event_format": "корпоратив",
+    "category": "Ведущий",
+    "budget": 1500000,
+    "language": null,
+    "duration_hours": null
+  },
+  "state_revision": 3
+}
+```
+
+Модель возвращает серверу только intent и список операций set/clear. Сервер заново проверяет значения по справочникам. Ответ содержит `assistant_status`, `reply`, `resolved_query`, `missing_fields`, `updated_fields`, `recommendation`, `suggestions` и исходный `state_revision`.
+
+- `needs_clarification`: обязательных данных не хватает или изменение неоднозначно;
+- `results`: выполнен обычный проверяемый подбор;
+- `explained`: показано сравнение или справка;
+- HTTP 503 `assistant_unavailable`: модель недоступна; ручная форма продолжает работать.
+
+`suggestions` формируются кодом, а не моделью. Для альтернативной даты и бюджета полный подбор выполняется повторно. Предложения не применяются автоматически.
