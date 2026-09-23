@@ -68,7 +68,8 @@ export function createExplainer({ apiKey = '', model = 'gpt-4o-mini', timeoutMs 
 
     const ranked = keywords.length ? localRanking(candidates, keywords) : candidates;
     const bestLiteralScore = keywords.length ? keywordScore(ranked[0], keywords) : 0;
-    const shortlist = ranked.slice(0, keywords.length ? bestLiteralScore > 0 ? 24 : ranked.length : 3);
+    const candidateLimit = !keywords.length ? 3 : bestLiteralScore > 0 ? 24 : ranked.length;
+    const shortlist = ranked.slice(0, candidateLimit);
     const shortlistSize = Math.min(3, shortlist.length);
     const key = JSON.stringify([version, model, query, keywords, locale, shortlist.map(profile => profile.id)]);
     if (cache.has(key)) return structuredClone(cache.get(key));

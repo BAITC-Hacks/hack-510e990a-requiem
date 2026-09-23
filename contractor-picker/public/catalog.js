@@ -4,6 +4,7 @@ initI18n();
 const $ = id => document.getElementById(id);
 const money = amount => `${new Intl.NumberFormat(({ kk: 'kk-KZ', en: 'en-US' })[getLocale()] || 'ru-RU').format(amount)} ₸`;
 let catalog;
+let visibleLimit = 18;
 
 function element(tag, className, text) {
   const node = document.createElement(tag);
@@ -73,12 +74,14 @@ function renderCatalog() {
     return [item.name, item.city, ...item.categories, ...item.event_formats, ...item.languages, item.description]
       .join(' ').toLocaleLowerCase().includes(search);
   });
-  $('catalog-cards').replaceChildren(...visible.map(catalogCardView));
+  const shown = visible.slice(0, visibleLimit);
+  $('catalog-cards').replaceChildren(...shown.map(catalogCardView));
   $('catalog-status').textContent = t('catalog_shown', {
-    shown: new Intl.NumberFormat(({ kk: 'kk-KZ', en: 'en-US' })[getLocale()] || 'ru-RU').format(visible.length),
-    total: new Intl.NumberFormat(({ kk: 'kk-KZ', en: 'en-US' })[getLocale()] || 'ru-RU').format(catalog.total),
+    shown: new Intl.NumberFormat(({ kk: 'kk-KZ', en: 'en-US' })[getLocale()] || 'ru-RU').format(shown.length),
+    total: new Intl.NumberFormat(({ kk: 'kk-KZ', en: 'en-US' })[getLocale()] || 'ru-RU').format(visible.length),
   });
   $('catalog-empty').hidden = visible.length > 0;
+  $('catalog-more').hidden = shown.length >= visible.length;
 }
 
 async function init() {
@@ -96,9 +99,15 @@ async function init() {
   }
 }
 
-$('catalog-search').addEventListener('input', renderCatalog);
-$('catalog-category').addEventListener('change', renderCatalog);
-$('catalog-city').addEventListener('change', renderCatalog);
+function resetAndRender() {
+  visibleLimit = 18;
+  renderCatalog();
+}
+
+$('catalog-search').addEventListener('input', resetAndRender);
+$('catalog-category').addEventListener('change', resetAndRender);
+$('catalog-city').addEventListener('change', resetAndRender);
+$('catalog-more').addEventListener('click', () => { visibleLimit += 18; renderCatalog(); });
 document.addEventListener('localechange', () => {
   if (catalog) {
     populateFilter($('catalog-category'), [...new Set(catalog.items.flatMap(item => item.categories))].sort((a, b) => a.localeCompare(b, 'ru')));
