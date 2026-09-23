@@ -6,6 +6,10 @@
 
 Возвращает `total`, `cities`, `categories`, `event_formats`, `languages`, `calendar: {from,to}`, `synthetic_count`, `dataset_version`. Справочники строятся из CSV. Интерфейс не ограничивает список категорий выбранным городом: отсутствие категории является отдельным проверяемым исходом.
 
+## GET /api/catalog
+
+Возвращает `total`, `dataset_version` и публичные поля всех объявлений в `items`: ID, анонимное имя, категории, город, начальная цена, форматы событий, языки, максимальная длительность, описание и флаги качества данных. Даты занятости в ответ каталога не включены — они используются только при проверке подбора.
+
 ## POST /api/recommend
 
 Обязательный заголовок `Content-Type: application/json`.
@@ -19,6 +23,8 @@
 | budget | number | Целое число 1–1 000 000 000 |
 | language | string/null | Необязательно, значение из справочника |
 | duration_hours | number/null | Необязательно, больше 0 и не больше 24 |
+| locale | string | Необязательно: `ru`, `kk` или `en`; язык ответа и объяснения |
+| current_keywords | string[] | Необязательно: до 8 предпочтений из сообщения ассистенту; учитываются после обязательных фильтров |
 
 Пустая строка, null или отсутствие необязательного поля означает «не ограничивать». Строки вместо чисел отклоняются. Город, категория и формат очищаются от пробелов по краям. Неизвестные поля не используются.
 
@@ -44,10 +50,11 @@
 - `counts`: in_category, eligible, shown, excluded (busy, budget, format, language, duration).
 - `busy_contractors`: ID и имена занятых в выбранных городе и категории, для объяснения исключения; не рекомендации.
 - `minimum_price`: минимальная начальная цена в городе/категории до других фильтров; null при отсутствии категории. Это справочная цена, не обещание доступности на дату.
-- `ranking`: price_asc_then_id.
+- `ranking`: `price_asc_then_id` без предпочтений или `keyword_relevance`, если заданы ключевые слова.
+- `preference_keywords`: предпочтения, по которым ранжированы объявления.
 - `query`: нормализованные параметры.
 - `dataset_version`: первые 12 символов SHA-256 исходного CSV.
-- `explanation_mode`: ai / catalog / fallback / not_needed.
+- `explanation_mode`: ai / catalog / keyword_fallback / fallback / not_needed.
 - `elapsed_ms`: время обработки на сервере.
 
 `catalog` означает отсутствие настроенного ключа. `fallback` — AI был настроен, но не дал пригодного ответа. `ai` ставится только после успешной проверки всех фрагментов. `not_needed` — карточек нет.
@@ -74,6 +81,8 @@
 ```json
 {
   "message": "А на 11 октября?",
+  "locale": "ru",
+  "current_keywords": ["живой звук", "лёгкий юмор"],
   "current_query": {
     "city": "Алматы",
     "date": "2026-10-10",
@@ -87,7 +96,7 @@
 }
 ```
 
-Модель возвращает серверу только intent и список операций set/clear. Сервер заново проверяет значения по справочникам. Ответ содержит `assistant_status`, `reply`, `resolved_query`, `missing_fields`, `updated_fields`, `recommendation`, `suggestions` и исходный `state_revision`.
+Модель возвращает серверу intent, предпочтения в `keywords` и список операций set/clear. Сервер заново проверяет условия по справочникам, затем выбирает кандидатов по совпадению предпочтений с текстом объявлений. Ответ содержит `assistant_status`, `reply`, `resolved_query`, `keywords`, `missing_fields`, `updated_fields`, `recommendation`, `suggestions` и исходный `state_revision`.
 
 - `needs_clarification`: обязательных данных не хватает или изменение неоднозначно;
 - `results`: выполнен обычный проверяемый подбор;

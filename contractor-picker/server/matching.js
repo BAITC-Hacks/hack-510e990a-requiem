@@ -43,7 +43,7 @@ export const reasonLabels = {
   duration: 'не подходят по длительности',
 };
 
-export function matchProfiles(profiles, query) {
+export function matchProfiles(profiles, query, { includeEligible = false } = {}) {
   const pool = profiles.filter(p => p.city === query.city && p.categories.includes(query.category));
   const excluded = Object.fromEntries(Object.keys(reasonLabels).map(k => [k, 0]));
   const available = [];
@@ -61,6 +61,7 @@ export function matchProfiles(profiles, query) {
   const status = !pool.length ? 'category_absent' : !available.length ? 'no_matches' : 'matched';
   return {
     status, selected: available.slice(0, 3),
+    ...(includeEligible ? { eligible: available } : {}),
     counts: { in_category: pool.length, eligible: available.length, shown: Math.min(3, available.length), excluded },
     ranking: 'price_asc_then_id',
     busy_contractors: pool.filter(p => p.busyDates.has(query.date)).map(p => ({ id: p.id, name: p.anon_name })),

@@ -19,7 +19,7 @@ function nearestDates(current, calendar) {
     });
 }
 
-export function verifiedSuggestions(profiles, query, result, meta) {
+export function verifiedSuggestions(profiles, query, result, meta, locale = 'ru') {
   if (result.status !== 'no_matches') return [];
   const suggestions = [];
 
@@ -29,7 +29,7 @@ export function verifiedSuggestions(profiles, query, result, meta) {
     if (check.status === 'matched') {
       suggestions.push({
         type: 'date',
-        label: `Проверить ${date}`,
+        label: locale === 'en' ? `Try ${date}` : locale === 'kk' ? `${date} күнін тексеру` : `Проверить ${date}`,
         changes: { date },
         eligible: check.counts.eligible,
       });
@@ -45,7 +45,7 @@ export function verifiedSuggestions(profiles, query, result, meta) {
     if (check.status === 'matched') {
       suggestions.push({
         type: 'budget',
-        label: `Поднять бюджет до ${minimum} ₸`,
+        label: locale === 'en' ? `Raise budget to ₸${minimum}` : locale === 'kk' ? `Бюджетті ${minimum} ₸ дейін көтеру` : `Поднять бюджет до ${minimum} ₸`,
         changes: { budget: minimum },
         eligible: check.counts.eligible,
       });
@@ -56,16 +56,20 @@ export function verifiedSuggestions(profiles, query, result, meta) {
 }
 
 export function createRecommendationService({ dataset, explain }) {
-  return async function recommend(query, { includeSuggestions = false } = {}) {
-    const result = matchProfiles(dataset.profiles, query);
-    const { selected, ...summary } = result;
-    const explanations = await explain(selected, query, dataset.version);
+  return async function recommend(query, { includeSuggestions = false, keywords = [], locale = 'ru' } = {}) {
+    const preferences = Array.isArray(keywords) ? keywords.slice(0, 8) : [];
+    const result = matchProfiles(dataset.profiles, query, { includeEligible: preferences.length > 0 });
+    const { selected, eligible, ...summary } = result;
+    const candidates = preferences.length ? eligible : selected;
+    const explanations = await explain(candidates, query, dataset.version, { keywords: preferences, locale });
     return {
       ...summary,
+      ranking: preferences.length ? 'keyword_relevance' : summary.ranking,
+      preference_keywords: preferences,
       ...explanations,
       query,
       dataset_version: dataset.version,
-      suggestions: includeSuggestions ? verifiedSuggestions(dataset.profiles, query, result, dataset.meta) : [],
+      suggestions: includeSuggestions ? verifiedSuggestions(dataset.profiles, query, result, dataset.meta, locale) : [],
     };
   };
 }

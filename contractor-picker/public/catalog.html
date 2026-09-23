@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Все объявления подрядчиков EventMatch для мероприятий в Казахстане.">
+  <meta name="theme-color" content="#123d39">
+  <title>EventMatch — все предложения</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/catalog.js"></script>
+</head>
+<body class="catalog-page">
+  <a class="skip-link" href="#catalog-list" data-i18n="skip_catalog">Перейти к каталогу</a>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="EventMatch — главная" data-i18n-aria="brand">
+      <span class="brand-mark" aria-hidden="true">e<span>m</span></span>
+      <span>EventMatch<span class="brand-region"> / KZ</span></span>
+    </a>
+    <div class="topbar-actions">
+      <a class="catalog-toggle catalog-back" href="/"><span aria-hidden="true">←</span><span data-i18n="back_search">Назад к подбору</span></a>
+      <label class="language-switcher"><span class="sr-only">Language / Тіл / Язык</span><select id="ui-language" aria-label="Language / Тіл / Язык"><option value="ru">Русский</option><option value="kk">Қазақша</option><option value="en">English</option></select></label>
+    </div>
+  </header>
+  <main>
+    <section id="catalog-list" class="catalog-section catalog-page-section" aria-labelledby="catalog-title">
+      <div class="catalog-heading">
+        <div><p class="step-label"><span class="step">03</span> <span data-i18n="catalog_eyebrow">КАТАЛОГ ПОДРЯДЧИКОВ</span></p><h1 id="catalog-title" data-i18n="catalog">Все предложения</h1><p class="catalog-intro" data-i18n="catalog_intro">Объявления из анонимизированного датасета. Цены указаны от; наличие проверяйте для выбранной даты через подбор.</p></div>
+      </div>
+      <div class="catalog-controls">
+        <label class="catalog-search"><span class="sr-only" data-i18n="catalog_search">Поиск в объявлениях</span><input id="catalog-search" type="search" data-i18n-placeholder="catalog_search" placeholder="Имя, категория или описание"></label>
+        <label><span class="sr-only" data-i18n="all_categories">Категория</span><select id="catalog-category"><option value="" data-i18n="all_categories">Все категории</option></select></label>
+        <label><span class="sr-only" data-i18n="all_cities">Город</span><select id="catalog-city"><option value="" data-i18n="all_cities">Все города</option></select></label>
+        <p id="catalog-status" class="catalog-status" role="status" aria-live="polite" data-i18n="catalog_loading">Загрузка объявлений…</p>
+      </div>
+      <div id="catalog-cards" class="catalog-cards"></div>
+      <p id="catalog-empty" class="catalog-empty" hidden data-i18n="catalog_none">По этим условиям объявлений не найдено.</p>
+    </section>
+    <section class="trust-note" aria-label="Как читать рекомендации" data-i18n-aria="trust_aria"><div class="trust-mark" aria-hidden="true">✓</div><div><strong data-i18n="trust_title">Рекомендация, а не обещание бронирования</strong><p data-i18n="trust_body">Цены указаны «от», описания — слова подрядчиков. Мы проверяем только структурированные условия каталога и доступность на выбранную дату.</p></div><details><summary data-i18n="trust_details">Как формируется порядок</summary><p data-i18n="trust_detail_body">Сначала применяются обязательные фильтры. Затем ИИ сопоставляет предпочтения с текстом объявлений. Даты, цены и доступность проверяются по каталогу.</p></details></section>
+    <footer><span>EventMatch <b>·</b> HackAlem</span><span data-i18n="footer">Учебный анонимизированный каталог · 66 профилей</span></footer>
+  </main>
+</body>
+</html>

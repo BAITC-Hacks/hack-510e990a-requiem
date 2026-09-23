@@ -1,5 +1,18 @@
-export const money = amount => new Intl.NumberFormat('ru-RU').format(amount) + ' ₸';
-export const displayDate = date => new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(date + 'T00:00:00Z'));
+const intlLocale = locale => ({ kk: 'kk-KZ', en: 'en-US' })[locale] || 'ru-RU';
+export const money = (amount, locale = 'ru') => `${new Intl.NumberFormat(intlLocale(locale)).format(amount)} ₸`;
+export const displayDate = (date, locale = 'ru') => new Intl.DateTimeFormat(intlLocale(locale), { day: 'numeric', month: 'long', timeZone: 'UTC' }).format(new Date(date + 'T00:00:00Z'));
+
+function displayFormat(value, locale) {
+  if (locale === 'en') return ({ корпоратив: 'corporate', свадьба: 'wedding', 'день рождения': 'birthday', конференция: 'conference', той: 'toi', юбилей: 'anniversary' })[value] || value;
+  if (locale === 'kk') return ({ корпоратив: 'корпоратив', свадьба: 'үйлену тойы', 'день рождения': 'туған күн', конференция: 'конференция', той: 'той', юбилей: 'мерейтой' })[value] || value;
+  return value;
+}
+
+function displayLanguage(value, locale) {
+  if (locale === 'en') return ({ русский: 'Russian', казахский: 'Kazakh', английский: 'English', Русский: 'Russian', Казахский: 'Kazakh', Английский: 'English' })[value] || value;
+  if (locale === 'kk') return ({ русский: 'орыс тілі', казахский: 'қазақ тілі', английский: 'ағылшын тілі', Русский: 'орыс тілі', Казахский: 'қазақ тілі', Английский: 'ағылшын тілі' })[value] || value;
+  return value;
+}
 
 export function evidenceFor(profile) {
   const text = profile.description;
@@ -19,10 +32,20 @@ export function fallbackEvidence(profile, query) {
     .sort((a, b) => b.score - a.score || a.i - b.i)[0].e;
 }
 
-export function makeCard(profile, query, evidence) {
-  const facts = [`${displayDate(query.date)} свободен по календарю`, `работает с форматом «${query.event_format}»`, `начальная цена ${money(profile.price_from_kzt)} при бюджете ${money(query.budget)}`];
-  if (query.language) facts.push(`язык — ${query.language}`);
-  if (query.duration_hours !== null) facts.push(profile.max_hours === null ? 'ограничение часов присутствия неприменимо' : `${query.duration_hours} ч укладываются в максимум ${profile.max_hours} ч`);
+export function makeCard(profile, query, evidence, locale = 'ru') {
+  const factsByLocale = {
+    ru: [`${displayDate(query.date, locale)} свободен по календарю`, `работает с форматом «${displayFormat(query.event_format, locale)}»`, `начальная цена ${money(profile.price_from_kzt, locale)} при бюджете ${money(query.budget, locale)}`],
+    kk: [`${displayDate(query.date, locale)} күнтізбе бойынша бос`, `«${displayFormat(query.event_format, locale)}» форматында жұмыс істейді`, `бастапқы бағасы ${money(profile.price_from_kzt, locale)}, бюджет ${money(query.budget, locale)}`],
+    en: [`Available on ${displayDate(query.date, locale)}`, `supports ${displayFormat(query.event_format, locale)} events`, `starting price ${money(profile.price_from_kzt, locale)} within the ${money(query.budget, locale)} budget`],
+  };
+  const facts = [...(factsByLocale[locale] || factsByLocale.ru)];
+  if (query.language) facts.push(locale === 'en' ? `language — ${displayLanguage(query.language, locale)}` : locale === 'kk' ? `тілі — ${displayLanguage(query.language, locale)}` : `язык — ${displayLanguage(query.language, locale)}`);
+  if (query.duration_hours !== null) {
+    const hoursFact = profile.max_hours === null
+      ? ({ ru: 'ограничение часов присутствия неприменимо', kk: 'болу уақытына шектеу қолданылмайды', en: 'duration limit does not apply' })[locale]
+      : ({ ru: `${query.duration_hours} ч укладываются в максимум ${profile.max_hours} ч`, kk: `${query.duration_hours} сағат ${profile.max_hours} сағаттық шекке сәйкес келеді`, en: `${query.duration_hours} hours fit within the ${profile.max_hours}-hour limit` })[locale];
+    facts.push(hoursFact);
+  }
   const reason = facts.join('; ');
   return {
     id: profile.id, name: profile.anon_name, category: query.category, categories: profile.categories,

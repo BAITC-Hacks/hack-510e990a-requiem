@@ -6,6 +6,7 @@ import { validateQuery, InputError } from './matching.js';
 import { createExplainer } from './ai.js';
 import { createAssistantParser, applyAssistantPatches, missingFields, clarificationReply, comparisonReply, completeQuery } from './assistant.js';
 import { createRecommendationService } from './recommendations.js';
+import { normalizeLocale, text } from './locales.js';
 
 export function createApp({ dataset = loadDataset(), explain = createExplainer({
   apiKey: process.env.OPENAI_API_KEY || '', model: process.env.OPENAI_MODEL || 'gpt-4o-mini',
@@ -23,36 +24,62 @@ export function createApp({ dataset = loadDataset(), explain = createExplainer({
   });
   app.use(express.json({ limit: '8kb' }));
   app.get('/api/meta', (_req, res) => res.json({ ...dataset.meta, dataset_version: dataset.version }));
+  app.get('/api/catalog', (_req, res) => res.set('Cache-Control', 'public, max-age=300').json({
+    total: dataset.profiles.length,
+    dataset_version: dataset.version,
+    items: dataset.profiles.map(({ id, anon_name, categories, city, price_from_kzt, event_formats, languages, max_hours, description, synthetic, city_imputed, price_imputed }) => ({
+      id,
+      name: anon_name,
+      categories,
+      city,
+      price_from_kzt,
+      event_formats,
+      languages,
+      max_hours,
+      description,
+      synthetic,
+      city_imputed,
+      price_imputed,
+    })),
+  }));
   app.get('/api/health', (_req, res) => res.json({ status: 'ok', profiles: dataset.profiles.length, dataset_version: dataset.version, assistant_configured: Boolean(process.env.OPENAI_API_KEY) }));
   app.post('/api/recommend', async (req, res) => {
     const started = performance.now();
-    const query = validateQuery(req.body, dataset.meta);
-    const result = await recommend(query, { includeSuggestions: true });
+    const input = { ...(req.body || {}) };
+    const locale = normalizeLocale(input.locale);
+    delete input.locale;
+    const keywords = Array.isArray(input.current_keywords) ? input.current_keywords.slice(0, 8) : [];
+    delete input.current_keywords;
+    const query = validateQuery(input, dataset.meta);
+    const result = await recommend(query, { includeSuggestions: true, keywords, locale });
     res.set('Cache-Control', 'no-store').json({ ...result, elapsed_ms: Math.round(performance.now() - started) });
   });
   app.post('/api/assistant', async (req, res) => {
     const started = performance.now();
     const message = typeof req.body?.message === 'string' ? req.body.message.trim() : '';
     if (!message || message.length > 1000) throw new InputError({ message: 'Введите сообщение длиной от 1 до 1000 символов' });
-    const stateRevision = Number.isSafeInteger(req.body.state_revision) ? req.body.state_revision : 0;
+    const stateRevision = Number.isSafeInteger(req.body?.state_revision) ? req.body.state_revision : 0;
+    const locale = normalizeLocale(req.body?.locale);
+    const currentKeywords = Array.isArray(req.body?.current_keywords) ? req.body.current_keywords.slice(0, 8) : [];
     let intent;
     try {
-      intent = await parseAssistant({ message, currentQuery: req.body.current_query || {}, meta: dataset.meta });
+      intent = await parseAssistant({ message, currentQuery: req.body?.current_query || {}, currentKeywords, meta: dataset.meta, locale });
     } catch {
       return res.status(503).set('Cache-Control', 'no-store').json({
         error: 'assistant_unavailable',
-        message: 'AI-ассистент временно недоступен. Вы по-прежнему можете выполнить подбор через форму.',
+        message: text(locale, 'unavailable'),
         state_revision: stateRevision,
       });
     }
 
-    const { draft, updatedFields, errors } = applyAssistantPatches(req.body.current_query, intent, dataset.meta);
+    const { draft, updatedFields, errors } = applyAssistantPatches(req.body?.current_query, intent, dataset.meta);
     const missing = missingFields(draft);
     if (intent.action === 'help') {
       return res.set('Cache-Control', 'no-store').json({
         assistant_status: 'explained',
-        reply: 'Опишите подрядчика, город, дату, формат мероприятия и бюджет. Я заполню форму; язык и длительность можно добавить по желанию.',
+        reply: text(locale, 'help'),
         resolved_query: draft,
+        keywords: intent.keywords || [],
         missing_fields: missing,
         updated_fields: updatedFields,
         recommendation: null,
@@ -64,8 +91,9 @@ export function createApp({ dataset = loadDataset(), explain = createExplainer({
     if (Object.keys(errors).length || missing.length) {
       return res.set('Cache-Control', 'no-store').json({
         assistant_status: 'needs_clarification',
-        reply: clarificationReply(missing, errors),
+        reply: clarificationReply(missing, errors, locale),
         resolved_query: draft,
+        keywords: intent.keywords || [],
         missing_fields: missing,
         updated_fields: updatedFields,
         recommendation: null,
@@ -77,8 +105,9 @@ export function createApp({ dataset = loadDataset(), explain = createExplainer({
     if (!updatedFields.length && intent.action === 'update') {
       return res.set('Cache-Control', 'no-store').json({
         assistant_status: 'needs_clarification',
-        reply: 'Уточните, какое условие изменить. Для бюджета укажите точную максимальную сумму.',
+        reply: text(locale, 'update'),
         resolved_query: draft,
+        keywords: intent.keywords || [],
         missing_fields: [],
         updated_fields: [],
         recommendation: null,
@@ -90,18 +119,20 @@ export function createApp({ dataset = loadDataset(), explain = createExplainer({
 
     const query = completeQuery(draft, dataset.meta);
     if (!query) throw new InputError({ message: 'Проверьте распознанные условия' });
-    const recommendation = await recommend(query, { includeSuggestions: true });
+    const keywords = Array.isArray(intent.keywords) ? intent.keywords.slice(0, 8) : [];
+    const recommendation = await recommend(query, { includeSuggestions: true, keywords, locale });
     let reply;
-    if (intent.action === 'compare') reply = comparisonReply(recommendation.cards);
-    else if (recommendation.status === 'matched') reply = `Нашёл подходящих вариантов: ${recommendation.counts.eligible}. Показываю до трёх по возрастанию начальной цены.`;
-    else if (recommendation.status === 'category_absent') reply = 'В выбранном городе этой категории пока нет. Изменение даты или бюджета не поможет.';
-    else if (recommendation.suggestions.length) reply = 'Точных совпадений нет. Я проверил изменения даты и бюджета — ниже есть варианты, которые действительно дают результат.';
-    else reply = 'Точных совпадений нет, и изменение только даты или бюджета не решает все ограничения. Проверьте формат, язык или длительность.';
+    if (intent.action === 'compare') reply = comparisonReply(recommendation.cards, locale);
+    else if (recommendation.status === 'matched') reply = text(locale, 'matched', { count: recommendation.counts.eligible });
+    else if (recommendation.status === 'category_absent') reply = text(locale, 'category_absent');
+    else if (recommendation.suggestions.length) reply = text(locale, 'suggestions');
+    else reply = text(locale, 'no_matches');
 
     res.set('Cache-Control', 'no-store').json({
       assistant_status: intent.action === 'compare' ? 'explained' : 'results',
       reply,
       resolved_query: query,
+      keywords,
       missing_fields: [],
       updated_fields: updatedFields,
       recommendation,

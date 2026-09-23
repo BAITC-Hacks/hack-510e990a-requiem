@@ -1,7 +1,11 @@
+import { getLocale, initI18n, localizeValue, t } from './i18n.js';
+
+initI18n();
 const $ = id => document.getElementById(id);
 const form = $('search');
-const money = amount => new Intl.NumberFormat('ru-RU').format(amount) + ' ₸';
-const dateText = value => new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(value + 'T00:00:00Z'));
+const intlLocale = () => ({ kk: 'kk-KZ', en: 'en-US' })[getLocale()] || 'ru-RU';
+const money = amount => new Intl.NumberFormat(intlLocale()).format(amount) + ' ₸';
+const dateText = value => new Intl.DateTimeFormat(intlLocale(), { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(value + 'T00:00:00Z'));
 const base = { city: 'Алматы', date: '2026-10-10', event_format: 'корпоратив', category: 'Ведущий', budget: 1500000, language: '', duration_hours: '' };
 const presets = {
   hosts: base,
@@ -10,7 +14,6 @@ const presets = {
   absent: { ...base, city: 'Астана', category: 'Декоратор' },
   budget: { ...base, budget: 100000 },
 };
-const reasons = { busy: 'заняты на дату', budget: 'выше бюджета', format: 'другой формат', language: 'не подходит язык', duration: 'не подходит длительность' };
 let meta;
 let requestController;
 let requestNumber = 0;
@@ -19,7 +22,9 @@ let currentResult;
 let assistantController;
 let assistantRequestNumber = 0;
 let stateRevision = 0;
-const fieldLabels = { city: 'город', date: 'дата', event_format: 'формат', category: 'категория', budget: 'бюджет', language: 'язык', duration_hours: 'длительность' };
+let currentKeywords = [];
+
+const fieldLabel = field => t(`field_${field}`);
 
 function element(tag, className, text) {
   const node = document.createElement(tag);
@@ -72,8 +77,8 @@ function setDraft(query = {}) {
 function formatAssistantValue(field, value) {
   if (field === 'budget') return money(value);
   if (field === 'date') return dateText(value);
-  if (field === 'duration_hours') return `${value} ч`;
-  return String(value);
+  if (field === 'duration_hours') return `${value} ${t('hours_unit')}`;
+  return localizeValue(String(value));
 }
 
 function renderAssistantSuggestions(suggestions = []) {
@@ -83,8 +88,8 @@ function renderAssistantSuggestions(suggestions = []) {
     const button = element('button', 'assistant-suggestion');
     button.type = 'button';
     const change = Object.entries(suggestion.changes)[0];
-    const description = change ? `${fieldLabels[change[0]]}: ${formatAssistantValue(change[0], change[1])}` : suggestion.label;
-    button.textContent = `${description} · ${suggestion.eligible} вариант(а)`;
+    const description = change ? `${fieldLabel(change[0])}: ${formatAssistantValue(change[0], change[1])}` : suggestion.label;
+    button.textContent = `${description} · ${t('suggestion_count', { count: suggestion.eligible })}`;
     button.addEventListener('click', () => {
       for (const [field, value] of Object.entries(suggestion.changes)) $(field).value = value;
       stateRevision++;
@@ -94,14 +99,20 @@ function renderAssistantSuggestions(suggestions = []) {
   }
 }
 
-function showAssistantResponse(reply, updatedFields = [], query = {}, suggestions = []) {
+function showAssistantResponse(reply, updatedFields = [], query = {}, suggestions = [], keywords = currentKeywords) {
   $('assistant-response').hidden = false;
   $('assistant-reply').textContent = reply;
   const updates = $('assistant-updates');
   updates.replaceChildren();
   for (const field of updatedFields) {
     if (query[field] === undefined || query[field] === null || query[field] === '') continue;
-    updates.append(element('span', 'assistant-chip', `${fieldLabels[field]}: ${formatAssistantValue(field, query[field])}`));
+    updates.append(element('span', 'assistant-chip', `${fieldLabel(field)}: ${formatAssistantValue(field, query[field])}`));
+  }
+  const preferenceList = $('assistant-preferences');
+  preferenceList.replaceChildren();
+  if (keywords.length) {
+    preferenceList.append(element('span', 'assistant-preferences-label', t('keyword_preferences')));
+    for (const keyword of keywords) preferenceList.append(element('span', 'assistant-chip', keyword));
   }
   renderAssistantSuggestions(suggestions);
 }
@@ -109,7 +120,7 @@ function showAssistantResponse(reply, updatedFields = [], query = {}, suggestion
 function cardView(card, index) {
   const article = element('article', 'card');
   const rank = element('span', 'card-rank');
-  rank.append(element('strong', '', String(index + 1)), document.createTextNode('вариант'));
+  rank.append(element('strong', '', String(index + 1)), document.createTextNode(t('variant')));
   article.append(rank);
   const top = element('div', 'card-top');
   const initials = card.name.split(' ').slice(0, 2).map(word => word[0]).join('');
@@ -119,24 +130,24 @@ function cardView(card, index) {
   const name = element('h3', '', card.name);
   name.id = `contractor-${index}`;
   article.setAttribute('aria-labelledby', name.id);
-  person.append(name, element('p', 'card-category', `${card.category} · ${card.city}`));
+  person.append(name, element('p', 'card-category', `${localizeValue(card.category)} · ${localizeValue(card.city)}`));
   top.append(avatar, person);
   const priceRow = element('div', 'price-row');
   const price = element('div', 'price');
-  price.append(element('span', 'price-prefix', 'от'), document.createTextNode(money(card.price_from_kzt)));
-  priceRow.append(price, element('span', 'availability', 'Свободен на дату'));
-  const hours = card.max_hours === null ? 'Часы присутствия неприменимы' : `До ${card.max_hours} ч на площадке`;
-  const attrs = element('p', 'attributes', `${card.languages.join(', ')} · ${hours}`);
+  price.append(element('span', 'price-prefix', t('from')), document.createTextNode(money(card.price_from_kzt)));
+  priceRow.append(price, element('span', 'availability', t('free_date')));
+  const hours = card.max_hours === null ? t('hours_na') : t('hours_max', { hours: card.max_hours });
+  const attrs = element('p', 'attributes', `${card.languages.map(value => localizeValue(value)).join(', ')} · ${hours}`);
   const box = element('div', 'reason-box');
-  box.append(element('p', 'reason-label', 'Почему подходит'), element('p', 'explanation', card.explanation));
+  box.append(element('p', 'reason-label', t('why')), element('p', 'explanation', card.explanation));
   const quote = element('blockquote', 'evidence', `«${card.evidence.text}${card.evidence.truncated ? '…' : ''}»`);
-  quote.append(element('span', 'evidence-source', 'Из описания подрядчика'));
+  quote.append(element('span', 'evidence-source', t('from_description')));
   box.append(quote);
   article.append(top, priceRow, attrs, box);
   const flags = element('div', 'flags');
-  if (card.synthetic) flags.append(element('span', 'flag synthetic', 'Синтетический профиль'));
-  if (card.price_imputed) flags.append(element('span', 'flag', 'Цена проставлена в датасете'));
-  if (card.city_imputed) flags.append(element('span', 'flag', 'Город проставлен в датасете'));
+  if (card.synthetic) flags.append(element('span', 'flag synthetic', t('synthetic')));
+  if (card.price_imputed) flags.append(element('span', 'flag', t('price_imputed')));
+  if (card.city_imputed) flags.append(element('span', 'flag', t('city_imputed')));
   if (flags.childNodes.length) article.append(flags);
   article.append(element('p', 'card-id', card.id));
   return article;
@@ -148,67 +159,74 @@ function render(result) {
   $('cards').replaceChildren(...result.cards.map(cardView));
   $('result-actions').hidden = result.cards.length < 2;
   $('empty-state').hidden = status === 'matched';
-  const statusLabels = { matched: 'Подбор завершён', category_absent: 'Категория не найдена', no_matches: 'Нет совпадений' };
+  const statusLabels = { matched: t('status_matched'), category_absent: t('status_absent'), no_matches: t('status_none') };
   const resultStatus = $('result-status');
-  resultStatus.textContent = statusLabels[status] || 'Проверено';
+  resultStatus.textContent = statusLabels[status] || t('status_checked');
   resultStatus.hidden = false;
   resultStatus.className = `result-status ${status}`;
-  $('result-meta').textContent = status === 'matched' ? 'Порядок: начальная цена ↑, затем ID' : 'Проверено по каталогу';
-  $('query-summary').textContent = `${query.city} · ${dateText(query.date)} · ${query.category} · ${query.event_format} · до ${money(query.budget)}${query.language ? ' · ' + query.language : ''}${query.duration_hours ? ' · ' + query.duration_hours + ' ч' : ''}`;
+  $('result-meta').textContent = status === 'matched'
+    ? result.ranking === 'keyword_relevance' ? t('order_keywords') : t('order_price')
+    : t('checked_catalog');
+  $('query-summary').textContent = `${localizeValue(query.city)} · ${dateText(query.date)} · ${localizeValue(query.category)} · ${localizeValue(query.event_format)} · ${t('budget_limit')} ${money(query.budget)}${query.language ? ' · ' + localizeValue(query.language) : ''}${query.duration_hours ? ' · ' + query.duration_hours + ' ' + t('hours_unit') : ''}`;
+  const keywords = result.preference_keywords || currentKeywords;
+  const preferenceSummary = $('preference-summary');
+  preferenceSummary.hidden = !keywords.length;
+  preferenceSummary.textContent = keywords.length ? `${t('keyword_preferences')} ${keywords.join(' · ')}` : '';
   const filter = $('filter-summary');
   filter.replaceChildren();
   filter.hidden = counts.in_category === 0;
   const total = element('span');
-  total.append(element('strong', '', String(counts.in_category)), document.createTextNode(' в городе и категории'));
+  total.append(element('strong', '', String(counts.in_category)), document.createTextNode(' ' + t('filters_count')));
   filter.append(total);
   for (const [key, value] of Object.entries(counts.excluded)) {
     if (!value) continue;
     const reason = element('span');
-    reason.append(element('strong', '', String(value)), document.createTextNode(' — ' + reasons[key]));
+    reason.append(element('strong', '', String(value)), document.createTextNode(' — ' + t(`excluded_${key}`)));
     filter.append(reason);
   }
-  filter.append(element('span', '', `Проходят все условия: ${counts.eligible}`));
+  filter.append(element('span', '', t('passes', { count: counts.eligible })));
   if (result.busy_contractors.length) {
     const details = element('details', 'busy-details');
-    details.append(element('summary', '', 'Кто занят на эту дату'), element('p', '', result.busy_contractors.map(p => p.name).join(', ')));
+    details.append(element('summary', '', t('busy_people')), element('p', '', result.busy_contractors.map(p => p.name).join(', ')));
     filter.append(details);
   }
   if (status === 'matched') {
     $('result-summary').textContent = counts.eligible >= 3
-      ? `Показаны ${counts.shown} из ${counts.eligible} подходящих вариантов.`
-      : `Подходящих вариантов: ${counts.eligible}. ${counts.in_category < 3 ? 'В этом городе в категории всего ' + counts.in_category + ' профиля.' : 'Остальные не проходят выбранные условия.'}${counts.in_category < 3 && counts.eligible < counts.in_category ? ' Остальные исключены по условиям ниже.' : ''}`;
+      ? t('shown_results', { shown: counts.shown, eligible: counts.eligible })
+      : `${t('found_results', { eligible: counts.eligible })} ${counts.in_category < 3 ? t('in_city_count', { count: counts.in_category }) : t('other_excluded')}`;
   } else if (status === 'category_absent') {
-    $('result-summary').textContent = 'В городе нет этой категории.';
-    $('empty-title').textContent = 'Такой категории пока нет в каталоге города';
-    $('empty-message').textContent = `Для сочетания «${query.city} — ${query.category}» нет профилей. Изменение даты или бюджета не поможет: выберите другой город или категорию.`;
+    $('result-summary').textContent = t('absent_summary');
+    $('empty-title').textContent = t('absent_title');
+    $('empty-message').textContent = t('absent_message', { city: localizeValue(query.city), category: localizeValue(query.category) });
   } else {
-    $('result-summary').textContent = 'Категория есть, но никто не проходит все условия.';
-    $('empty-title').textContent = 'Подходящих вариантов не найдено';
+    $('result-summary').textContent = t('no_match_summary');
+    $('empty-title').textContent = t('no_match_title');
     const advice = [];
-    if (counts.excluded.busy) advice.push('попробуйте другую дату');
-    if (query.budget < result.minimum_price) advice.push(`начальные цены в этой категории города — от ${money(result.minimum_price)}`);
-    else if (counts.excluded.budget) advice.push('проверьте бюджет');
-    if (counts.excluded.format) advice.push('проверьте формат мероприятия');
-    if (counts.excluded.language || counts.excluded.duration) advice.push('проверьте язык и длительность');
-    const hint = advice.join('; ');
-    $('empty-message').textContent = `В городе есть ${counts.in_category} профилей этой категории, но каждый исключён по одному из условий выше. ${hint.charAt(0).toUpperCase() + hint.slice(1)}.`;
+    if (counts.excluded.busy) advice.push(t('advice_date'));
+    if (query.budget < result.minimum_price) advice.push(t('advice_prices', { price: money(result.minimum_price) }));
+    else if (counts.excluded.budget) advice.push(t('advice_budget'));
+    if (counts.excluded.format) advice.push(t('advice_format'));
+    if (counts.excluded.language || counts.excluded.duration) advice.push(t('advice_language'));
+    const hint = advice.length ? advice.join('; ') : t('advice_generic');
+    $('empty-message').textContent = t('no_match_message', { count: counts.in_category, advice: hint });
   }
   const modes = {
-    ai: 'AI выбрал особенности из описаний. Даты, цены и порядок карточек проверены по каталогу.',
-    catalog: 'Объяснения составлены по данным каталога. AI не подключён.',
-    fallback: 'AI временно недоступен. Показываем объяснения по данным каталога; условия подбора не изменились.',
+    ai: t('mode_ai'),
+    catalog: t('mode_catalog'),
+    keyword_fallback: t('mode_fallback'),
+    fallback: t('mode_fallback'),
     not_needed: '',
   };
   $('mode-note').textContent = modes[result.explanation_mode] || '';
   if (status === 'no_matches' && result.suggestions?.length) {
-    showAssistantResponse('Я проверил изменения, которые действительно дают варианты:', [], query, result.suggestions);
+    showAssistantResponse(t('suggestions_intro'), [], query, result.suggestions, keywords);
   }
   if (previousResult && previousResult.query.date !== query.date) {
     const { date: oldDate, ...oldConditions } = previousResult.query;
     const { date: newDate, ...newConditions } = query;
     if (JSON.stringify(oldConditions) === JSON.stringify(newConditions)) {
       const nowBusy = previousResult.cards.filter(card => result.busy_contractors.some(p => p.id === card.id));
-      if (nowBusy.length) $('result-summary').textContent += ` На ${dateText(newDate)} заняты: ${nowBusy.map(p => p.name).join(', ')} — поэтому они исключены из предыдущей подборки.`;
+      if (nowBusy.length) $('result-summary').textContent += ` ${t('previous_busy', { date: dateText(newDate), names: nowBusy.map(p => p.name).join(', ') })}`;
     }
   }
   previousResult = result;
@@ -218,7 +236,7 @@ async function sendAssistant(forcedMessage) {
   const input = $('assistant-input');
   const message = (forcedMessage ?? input.value).trim();
   if (!message) {
-    showAssistantResponse('Опишите задачу одним сообщением — например, город, дату, категорию и бюджет.');
+    showAssistantResponse(t('assistant_empty'));
     input.focus();
     return;
   }
@@ -229,24 +247,25 @@ async function sendAssistant(forcedMessage) {
   const revision = stateRevision;
   const timeout = setTimeout(() => controller.abort('timeout'), 13000);
   $('assistant-send').disabled = true;
-  $('assistant-send-label').textContent = 'Разбираю…';
-  showAssistantResponse('Понимаю запрос и сверяю условия с каталогом…');
+  $('assistant-send-label').textContent = t('assistant_loading');
+  showAssistantResponse(t('assistant_wait'));
   try {
     const response = await fetch('/api/assistant', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message, current_query: getDraft(), state_revision: revision }),
+      body: JSON.stringify({ message, current_query: getDraft(), current_keywords: currentKeywords, locale: getLocale(), state_revision: revision }),
       signal: controller.signal,
     });
     const result = await response.json();
     if (serial !== assistantRequestNumber || revision !== stateRevision || result.state_revision !== revision) return;
     if (!response.ok) {
-      showAssistantResponse(result.message || 'Ассистент временно недоступен. Используйте форму ниже.');
+      showAssistantResponse(result.message || t('assistant_offline'));
       return;
     }
+    currentKeywords = Array.isArray(result.keywords) ? result.keywords : currentKeywords;
     setDraft(result.resolved_query);
     stateRevision++;
-    showAssistantResponse(result.reply, result.updated_fields, result.resolved_query, result.suggestions);
+    showAssistantResponse(result.reply, result.updated_fields, result.resolved_query, result.suggestions, currentKeywords);
     if (result.recommendation) {
       render(result.recommendation);
       if (forcedMessage !== undefined) {
@@ -264,13 +283,13 @@ async function sendAssistant(forcedMessage) {
   } catch {
     if (serial !== assistantRequestNumber) return;
     showAssistantResponse(controller.signal.reason === 'timeout'
-      ? 'Ассистент не ответил вовремя. Условия можно заполнить вручную.'
-      : 'Не удалось связаться с ассистентом. Проверьте сервер и попробуйте снова.');
+      ? t('assistant_timeout')
+      : t('assistant_connection'));
   } finally {
     clearTimeout(timeout);
     if (serial === assistantRequestNumber) {
       $('assistant-send').disabled = false;
-      $('assistant-send-label').textContent = 'Разобрать запрос';
+      $('assistant-send-label').textContent = t('assistant_send');
     }
   }
 }
@@ -286,31 +305,32 @@ async function recommend(shouldRevealResults = false) {
   const query = getQuery();
   $('results').setAttribute('aria-busy', 'true');
   $('submit').disabled = true;
-  $('submit-label').textContent = 'Подбираем…';
-  $('result-summary').textContent = 'Проверяем доступность и условия…';
+  $('submit-label').textContent = t('submit_loading');
+  $('result-summary').textContent = t('assistant_wait');
   try {
-    const response = await fetch('/api/recommend', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(query), signal: controller.signal });
+    const response = await fetch('/api/recommend', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...query, locale: getLocale(), current_keywords: currentKeywords }), signal: controller.signal });
     const result = await response.json();
     if (serial !== requestNumber) return;
     if (!response.ok) {
-      showError(result.message || 'Не удалось выполнить подбор', result.fields);
-      $('result-summary').textContent = 'Подбор не выполнен. Проверьте параметры формы.';
+      showError(result.message || t('request_error'), result.fields);
+      $('result-summary').textContent = t('request_error_state');
       $('cards').replaceChildren(); $('filter-summary').hidden = true; $('empty-state').hidden = true; $('query-summary').textContent = ''; $('mode-note').textContent = ''; $('result-meta').textContent = ''; $('result-status').hidden = true;
       return;
     }
+    currentKeywords = Array.isArray(result.preference_keywords) ? result.preference_keywords : currentKeywords;
     render(result);
     if (shouldRevealResults) $('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch {
     if (serial !== requestNumber) return;
-    showError(controller.signal.reason === 'timeout' ? 'Ответ не пришёл за 10 секунд. Попробуйте ещё раз.' : 'Не удалось связаться с сервером. Проверьте подключение и повторите подбор.');
-    $('result-summary').textContent = 'Не удалось завершить подбор.';
+    showError(controller.signal.reason === 'timeout' ? t('request_timeout') : t('connection_error'));
+    $('result-summary').textContent = t('failed');
     $('cards').replaceChildren(); $('filter-summary').hidden = true; $('empty-state').hidden = true; $('query-summary').textContent = ''; $('mode-note').textContent = ''; $('result-meta').textContent = ''; $('result-status').hidden = true;
   } finally {
     clearTimeout(timeout);
     if (serial === requestNumber) {
       $('results').setAttribute('aria-busy', 'false');
       $('submit').disabled = false;
-      $('submit-label').textContent = 'Показать подходящие варианты';
+      $('submit-label').textContent = t('submit');
     }
   }
 }
@@ -324,7 +344,7 @@ form.addEventListener('input', () => {
   assistantController?.abort();
   document.querySelectorAll('[data-preset]').forEach(b => b.classList.remove('active'));
   if (currentResult) {
-    $('result-summary').textContent = 'Условия изменены. Обновите подбор, чтобы увидеть актуальные варианты.';
+    $('result-summary').textContent = t('manual_update');
     $('result-actions').hidden = true;
     $('comparison-output').hidden = true;
   }
@@ -332,13 +352,14 @@ form.addEventListener('input', () => {
 document.querySelectorAll('[data-preset]').forEach(button => {
   button.disabled = true;
   button.addEventListener('click', () => {
+    $('manual-filters').open = true;
     for (const [key, value] of Object.entries(presets[button.dataset.preset])) $(key).value = value;
     stateRevision++;
     document.querySelectorAll('[data-preset]').forEach(b => b.classList.toggle('active', b === button));
     recommend(true);
   });
 });
-$('edit-query').addEventListener('click', () => { $('city').focus(); $('search').scrollIntoView({ behavior: 'smooth', block: 'center' }); });
+$('edit-query').addEventListener('click', () => { $('manual-filters').open = true; $('city').focus(); $('search').scrollIntoView({ behavior: 'smooth', block: 'center' }); });
 $('assistant-send').addEventListener('click', () => sendAssistant());
 $('assistant-input').addEventListener('keydown', event => {
   if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
@@ -346,7 +367,23 @@ $('assistant-input').addEventListener('keydown', event => {
     sendAssistant();
   }
 });
-$('compare-results').addEventListener('click', () => sendAssistant('Сравни показанные варианты'));
+$('compare-results').addEventListener('click', () => sendAssistant(t('compare_prompt')));
+
+document.addEventListener('localechange', () => {
+  for (const id of ['city', 'category', 'event_format', 'language']) {
+    const select = $(id);
+    if (!select) continue;
+    for (const option of select.options) {
+      if (option.value) option.textContent = localizeValue(option.value);
+      else if (id !== 'language') option.textContent = t('select');
+    }
+  }
+  if (!$('assistant-response').hidden) showAssistantResponse(t('locale_changed'), [], getDraft(), [], currentKeywords);
+  if ($('assistant-send').disabled) $('assistant-send-label').textContent = t('assistant_loading');
+  if ($('submit').disabled) $('submit-label').textContent = t('submit_loading');
+  if (currentResult) recommend(false);
+  else $('result-summary').textContent = meta ? t('assistant_empty') : t('loading_catalog');
+});
 
 async function init() {
   try {
@@ -355,23 +392,23 @@ async function init() {
     meta = await response.json();
     for (const [id, values] of Object.entries({ city: meta.cities, category: meta.categories, event_format: meta.event_formats, language: meta.languages })) {
       if (id !== 'language') {
-        const placeholder = element('option', '', 'Выберите');
+        const placeholder = element('option', '', t('select'));
         placeholder.value = '';
         placeholder.disabled = true;
         placeholder.selected = true;
         $(id).append(placeholder);
       }
-      values.forEach(value => { const option = element('option', '', value); option.value = value; $(id).append(option); });
+      values.forEach(value => { const option = element('option', '', localizeValue(value)); option.value = value; $(id).append(option); });
     }
     $('date').min = meta.calendar.from; $('date').max = meta.calendar.to;
     $('search-fields').disabled = false;
     document.querySelectorAll('[data-preset]').forEach(b => { b.disabled = false; });
     setDraft();
-    $('result-summary').textContent = 'Опишите задачу ассистенту, выберите пример или заполните форму.';
+    $('result-summary').textContent = t('assistant_empty');
     $('assistant-input').focus({ preventScroll: true });
   } catch {
-    $('result-summary').textContent = 'Каталог недоступен.';
-    showError('Не удалось загрузить каталог. Убедитесь, что сервер запущен, и обновите страницу.');
+    $('result-summary').textContent = t('catalog_error');
+    showError(t('catalog_load_error'));
   }
 }
 init();
