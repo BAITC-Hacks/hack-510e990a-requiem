@@ -3,61 +3,76 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Подбор до трёх event-подрядчиков по городу, дате, формату и бюджету с объяснением каждого варианта.">
+  <meta name="description" content="EventMatch помогает быстро сравнить до трёх свободных подрядчиков для мероприятия по проверяемым условиям.">
   <meta name="theme-color" content="#123d39">
-  <title>EventMatch — подбор подрядчиков</title>
+  <title>EventMatch — подбор подрядчиков для мероприятия</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/styles.css">
   <script type="module" src="/app.js"></script>
 </head>
 <body>
-  <a class="skip-link" href="#search">Перейти к подбору</a>
+  <a class="skip-link" href="#search">Перейти к форме подбора</a>
   <header class="topbar">
-    <a class="brand" href="/" aria-label="EventMatch — главная"><span class="brand-mark" aria-hidden="true">e<span>m</span></span><span>EventMatch<span class="brand-region"> / KZ</span></span></a>
-    <span class="dataset-label">Каталог мероприятий <span class="separator">/</span> <span id="catalog-count">66 профилей</span></span>
+    <a class="brand" href="/" aria-label="EventMatch — главная">
+      <span class="brand-mark" aria-hidden="true">e<span>m</span></span>
+      <span>EventMatch<span class="brand-region"> / KZ</span></span>
+    </a>
+    <div class="topbar-meta"><span class="status-dot" aria-hidden="true"></span><span>Каталог обновлён для демонстрации</span></div>
   </header>
+
   <main>
-    <section class="intro" aria-labelledby="page-title">
-      <div><p class="eyebrow">МЕРОПРИЯТИЕ НАЧИНАЕТСЯ С ЛЮДЕЙ</p><h1 id="page-title">Подберите подрядчика</h1><p class="lead">До трёх вариантов под ваши условия — с понятным объяснением каждого.</p></div>
-      <div class="calendar-note"><span class="calendar-icon" aria-hidden="true">23</span><span>Даты в каталоге<br><strong>23 сентября — 31 декабря 2026</strong></span></div>
+    <section class="hero" aria-labelledby="page-title">
+      <div class="hero-copy">
+        <p class="eyebrow"><span class="eyebrow-line"></span>ПОДБОР ПОДРЯДЧИКОВ ДЛЯ СОБЫТИЯ</p>
+        <h1 id="page-title">Подберите подрядчика<br><em>для вашего события.</em></h1>
+        <p class="lead">Укажите условия — мы проверим город, дату, формат, бюджет и доступность, а затем покажем до трёх вариантов с понятным объяснением.</p>
+        <div class="hero-proof" aria-label="Что делает сервис"><span><strong>66</strong> профилей</span><span><strong>3</strong> варианта в выдаче</span><span><strong>100%</strong> условий проверяются</span></div>
+      </div>
+      <aside class="calendar-note" aria-label="Период доступности каталога">
+        <span class="calendar-icon" aria-hidden="true"><small>2026</small><strong>23</strong><small>СЕН</small></span>
+        <span><b>Период каталога</b><br><strong>23 сентября — 31 декабря 2026</strong><small>Доступность проверяется только в этом диапазоне</small></span>
+      </aside>
     </section>
 
     <section class="search-panel" aria-labelledby="search-title">
-      <div class="section-line"><h2 id="search-title"><span class="step">01</span> Ваше мероприятие</h2><span class="required-hint">Все суммы в тенге</span></div>
+      <div class="panel-heading"><div><p class="step-label"><span class="step">01</span> УСЛОВИЯ СОБЫТИЯ</p><h2 id="search-title">Соберём запрос за минуту</h2></div><p class="required-hint"><span aria-hidden="true">●</span> Обязательные поля</p></div>
+      <div class="form-guide" role="note"><span class="guide-icon" aria-hidden="true">i</span><span><strong>Сначала — обязательные условия.</strong> Язык и длительность можно добавить, если они важны для события.</span></div>
       <form id="search" novalidate>
         <fieldset id="search-fields" disabled>
           <legend class="sr-only">Параметры подбора</legend>
           <div class="main-fields">
-            <label>Город<select id="city" name="city" required aria-describedby="city-error"></select><span class="field-error" id="city-error"></span></label>
-            <label>Дата мероприятия<input id="date" name="date" type="date" value="2026-10-10" min="2026-09-23" max="2026-12-31" required aria-describedby="date-error"><span class="field-error" id="date-error"></span></label>
-            <label>Тип мероприятия<select id="event_format" name="event_format" required aria-describedby="event_format-error"></select><span class="field-error" id="event_format-error"></span></label>
-            <label>Кого ищем<select id="category" name="category" required aria-describedby="category-error"></select><span class="field-error" id="category-error"></span></label>
-            <label>Бюджет на подрядчика<input id="budget" name="budget" type="number" inputmode="numeric" min="1" max="1000000000" step="1" value="1500000" required aria-describedby="budget-error"><span class="field-error" id="budget-error"></span></label>
+            <label class="field field-city"><span>Город <i aria-hidden="true">*</i></span><select id="city" name="city" required aria-describedby="city-error"></select><span class="field-error" id="city-error"></span></label>
+            <label class="field field-date"><span>Дата мероприятия <i aria-hidden="true">*</i></span><input id="date" name="date" type="date" value="2026-10-10" min="2026-09-23" max="2026-12-31" required aria-describedby="date-error"><span class="field-hint">Доступность из каталога</span><span class="field-error" id="date-error"></span></label>
+            <label class="field field-format"><span>Формат <i aria-hidden="true">*</i></span><select id="event_format" name="event_format" required aria-describedby="event_format-error"></select><span class="field-error" id="event_format-error"></span></label>
+            <label class="field field-category"><span>Кого ищем <i aria-hidden="true">*</i></span><select id="category" name="category" required aria-describedby="category-error"></select><span class="field-error" id="category-error"></span></label>
+            <label class="field field-budget"><span>Бюджет на подрядчика <i aria-hidden="true">*</i></span><div class="input-unit currency"><input id="budget" name="budget" type="number" inputmode="numeric" min="1" max="1000000000" step="1" value="1500000" required aria-describedby="budget-error"><span aria-hidden="true">₸</span></div><span class="field-hint">Начальная цена, не итоговая смета</span><span class="field-error" id="budget-error"></span></label>
           </div>
-          <div class="secondary-fields">
-            <label>Язык <span class="optional">необязательно</span><select id="language" name="language" aria-describedby="language-error"><option value="">Любой язык</option></select><span class="field-error" id="language-error"></span></label>
-            <label>Длительность <span class="optional">необязательно</span><div class="input-unit"><input id="duration_hours" name="duration_hours" type="number" min="0.5" max="24" step="0.5" placeholder="Не указана" aria-describedby="duration_hours-error"><span>ч</span></div><span class="field-error" id="duration_hours-error"></span></label>
-            <p class="form-note">Показываем только свободных на дату.<br>Цена «от» — итоговую стоимость нужно уточнить.</p>
-            <button class="primary-button" id="submit" type="submit"><span id="submit-label">Подобрать варианты</span><span aria-hidden="true">↗</span></button>
+          <div class="optional-row">
+            <div class="optional-heading"><span class="optional-icon" aria-hidden="true">+</span><div><strong>Уточнить подбор</strong><span>Необязательно</span></div></div>
+            <label class="field"><span>Язык</span><select id="language" name="language" aria-describedby="language-error"><option value="">Любой язык</option></select><span class="field-error" id="language-error"></span></label>
+            <label class="field"><span>Длительность</span><div class="input-unit"><input id="duration_hours" name="duration_hours" type="number" min="0.5" max="24" step="0.5" placeholder="Не указана" aria-describedby="duration_hours-error"><span>ч</span></div><span class="field-error" id="duration_hours-error"></span></label>
+            <p class="form-note">Дополнительные ограничения применяются только если вы их укажете.</p>
           </div>
+          <button class="primary-button" id="submit" type="submit"><span class="button-icon" aria-hidden="true">↗</span><span id="submit-label">Показать подходящие варианты</span><span class="button-arrow" aria-hidden="true">→</span></button>
         </fieldset>
         <div id="form-error" class="error-banner" role="alert" hidden></div>
       </form>
     </section>
 
-    <div class="examples" aria-label="Примеры запросов"><span>Попробуйте:</span><button type="button" data-preset="hosts">Корпоратив в Алматы</button><button type="button" data-preset="florist">Флорист на свадьбу</button><button type="button" data-preset="venue">Банкетный зал</button><button type="button" data-preset="absent">Нет категории в городе</button><button type="button" data-preset="budget">Не проходит бюджет</button></div>
+    <div class="examples" aria-label="Быстрые сценарии для демонстрации"><span class="examples-label">Или начните с примера</span><button type="button" data-preset="hosts">Корпоратив в Алматы</button><button type="button" data-preset="florist">Флорист на свадьбу</button><button type="button" data-preset="venue">Банкетный зал</button><button type="button" data-preset="absent">Категории нет</button><button type="button" data-preset="budget">Не проходит бюджет</button></div>
 
     <section id="results" class="results" aria-labelledby="results-title" aria-busy="false">
-      <div class="section-line result-heading"><h2 id="results-title"><span class="step">02</span> Подходящие варианты</h2><span id="result-meta" class="result-meta"></span></div>
-      <p id="result-summary" class="result-summary" role="status" aria-live="polite">Загружаем каталог…</p>
+      <div class="results-heading"><div><p class="step-label"><span class="step">02</span> РЕЗУЛЬТАТ ПОДБОРА</p><h2 id="results-title">Варианты, которые подходят</h2></div><span id="result-status" class="result-status" hidden></span></div>
+      <div class="result-context"><p id="result-summary" class="result-summary" role="status" aria-live="polite">Загружаем каталог…</p><p id="result-meta" class="result-meta"></p></div>
       <div id="query-summary" class="query-summary"></div>
       <div id="filter-summary" class="filter-summary" hidden></div>
       <div id="cards" class="cards"></div>
-      <div id="empty-state" class="empty-state" hidden><span class="empty-symbol" aria-hidden="true">—</span><h3 id="empty-title"></h3><p id="empty-message"></p><button id="edit-query" class="secondary-button" type="button">Изменить условия</button></div>
+      <div id="empty-state" class="empty-state" hidden><span class="empty-symbol" aria-hidden="true">⌕</span><h3 id="empty-title"></h3><p id="empty-message"></p><button id="edit-query" class="secondary-button" type="button">Изменить условия</button></div>
       <p id="mode-note" class="mode-note"></p>
     </section>
 
-    <footer><span>EventMatch · HackAlem</span><details><summary>О данных и порядке подбора</summary><p>Учебный анонимизированный каталог: 66 профилей, включая 13 синтетических. Занятость известна только с 23.09.2026 по 31.12.2026. Это рекомендация, не бронирование.</p><p>Сначала проверяем город, категорию, дату, начальную цену, формат, язык и длительность. Среди прошедших условия сначала показываем меньшую начальную цену; при равенстве — порядок идентификаторов. Это не рейтинг качества.</p><p>Особенности взяты из описаний самих подрядчиков и не проверены независимо. Отметки в карточке показывают синтетические профили, а также город или цену, проставленные при подготовке датасета.</p></details></footer>
+    <section class="trust-note" aria-label="Как читать рекомендации"><div class="trust-mark" aria-hidden="true">✓</div><div><strong>Рекомендация, а не обещание бронирования</strong><p>Цены указаны «от», описания — слова подрядчиков. Мы проверяем только структурированные условия каталога и доступность на выбранную дату.</p></div><details><summary>Как формируется порядок</summary><p>Сначала проходят обязательные фильтры. Затем варианты сортируются по начальной цене, при равенстве — по ID. AI может выбрать характерную деталь описания, но не меняет состав и порядок выдачи.</p></details></section>
+    <footer><span>EventMatch <b>·</b> HackAlem</span><span>Учебный анонимизированный каталог · 66 профилей</span></footer>
   </main>
   <noscript>Для подбора подрядчиков включите JavaScript в браузере.</noscript>
 </body>

@@ -47,6 +47,9 @@ function getQuery() {
 
 function cardView(card, index) {
   const article = element('article', 'card');
+  const rank = element('span', 'card-rank');
+  rank.append(element('strong', '', String(index + 1)), document.createTextNode('вариант'));
+  article.append(rank);
   const top = element('div', 'card-top');
   const initials = card.name.split(' ').slice(0, 2).map(word => word[0]).join('');
   const avatar = element('span', 'avatar', initials);
@@ -82,7 +85,12 @@ function render(result) {
   const { counts, query, status } = result;
   $('cards').replaceChildren(...result.cards.map(cardView));
   $('empty-state').hidden = status === 'matched';
-  $('result-meta').textContent = status === 'matched' ? 'Сначала меньшая начальная цена' : 'Проверено по каталогу';
+  const statusLabels = { matched: 'Подбор завершён', category_absent: 'Категория не найдена', no_matches: 'Нет совпадений' };
+  const resultStatus = $('result-status');
+  resultStatus.textContent = statusLabels[status] || 'Проверено';
+  resultStatus.hidden = false;
+  resultStatus.className = `result-status ${status}`;
+  $('result-meta').textContent = status === 'matched' ? 'Порядок: начальная цена ↑, затем ID' : 'Проверено по каталогу';
   $('query-summary').textContent = `${query.city} · ${dateText(query.date)} · ${query.category} · ${query.event_format} · до ${money(query.budget)}${query.language ? ' · ' + query.language : ''}${query.duration_hours ? ' · ' + query.duration_hours + ' ч' : ''}`;
   const filter = $('filter-summary');
   filter.replaceChildren();
@@ -140,7 +148,7 @@ function render(result) {
   previousResult = result;
 }
 
-async function recommend() {
+async function recommend(shouldRevealResults = false) {
   clearError();
   if (!form.reportValidity()) return;
   requestController?.abort();
@@ -160,26 +168,27 @@ async function recommend() {
     if (!response.ok) {
       showError(result.message || 'Не удалось выполнить подбор', result.fields);
       $('result-summary').textContent = 'Подбор не выполнен. Проверьте параметры формы.';
-      $('cards').replaceChildren(); $('filter-summary').hidden = true; $('empty-state').hidden = true; $('query-summary').textContent = ''; $('mode-note').textContent = ''; $('result-meta').textContent = '';
+      $('cards').replaceChildren(); $('filter-summary').hidden = true; $('empty-state').hidden = true; $('query-summary').textContent = ''; $('mode-note').textContent = ''; $('result-meta').textContent = ''; $('result-status').hidden = true;
       return;
     }
     render(result);
+    if (shouldRevealResults) $('results').scrollIntoView({ behavior: 'smooth', block: 'start' });
   } catch {
     if (serial !== requestNumber) return;
     showError(controller.signal.reason === 'timeout' ? 'Ответ не пришёл за 10 секунд. Попробуйте ещё раз.' : 'Не удалось связаться с сервером. Проверьте подключение и повторите подбор.');
     $('result-summary').textContent = 'Не удалось завершить подбор.';
-    $('cards').replaceChildren(); $('filter-summary').hidden = true; $('empty-state').hidden = true; $('query-summary').textContent = ''; $('mode-note').textContent = ''; $('result-meta').textContent = '';
+    $('cards').replaceChildren(); $('filter-summary').hidden = true; $('empty-state').hidden = true; $('query-summary').textContent = ''; $('mode-note').textContent = ''; $('result-meta').textContent = ''; $('result-status').hidden = true;
   } finally {
     clearTimeout(timeout);
     if (serial === requestNumber) {
       $('results').setAttribute('aria-busy', 'false');
       $('submit').disabled = false;
-      $('submit-label').textContent = 'Подобрать варианты';
+      $('submit-label').textContent = 'Показать подходящие варианты';
     }
   }
 }
 
-form.addEventListener('submit', event => { event.preventDefault(); recommend(); });
+form.addEventListener('submit', event => { event.preventDefault(); recommend(true); });
 form.addEventListener('input', () => {
   document.querySelectorAll('[data-preset]').forEach(b => b.classList.remove('active'));
 });
@@ -188,7 +197,7 @@ document.querySelectorAll('[data-preset]').forEach(button => {
   button.addEventListener('click', () => {
     for (const [key, value] of Object.entries(presets[button.dataset.preset])) $(key).value = value;
     document.querySelectorAll('[data-preset]').forEach(b => b.classList.toggle('active', b === button));
-    recommend();
+    recommend(true);
   });
 });
 $('edit-query').addEventListener('click', () => { $('city').focus(); $('search').scrollIntoView({ behavior: 'smooth', block: 'center' }); });
@@ -202,7 +211,6 @@ async function init() {
       values.forEach(value => { const option = element('option', '', value); option.value = value; $(id).append(option); });
     }
     $('date').min = meta.calendar.from; $('date').max = meta.calendar.to;
-    $('catalog-count').textContent = `${meta.total} профилей`;
     $('search-fields').disabled = false;
     document.querySelectorAll('[data-preset]').forEach(b => { b.disabled = false; });
     for (const [key, value] of Object.entries(base)) $(key).value = value;
