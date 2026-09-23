@@ -14,15 +14,20 @@ function displayLanguage(value, locale) {
   return value;
 }
 
+const evidenceCache = new WeakMap();
+
 export function evidenceFor(profile) {
+  if (evidenceCache.has(profile)) return evidenceCache.get(profile);
   const text = profile.description;
   // Every fragment is an exact substring of the source; the model cannot author facts.
   const pieces = [...new Intl.Segmenter('ru', { granularity: 'sentence' }).segment(text)].map(s => s.segment.trim());
   const usable = pieces.filter(s => s.length >= 30 && !/^(привет|всем привет|здравствуйте|меня зовут|с уважением)/i.test(s));
-  return (usable.length ? usable : [text.trim()]).slice(0, 18).map((s, i) => {
+  const evidence = (usable.length ? usable : [text.trim()]).slice(0, 18).map((s, i) => {
     const excerpt = s.length <= 260 ? s : s.slice(0, s.lastIndexOf(' ', 260) > 80 ? s.lastIndexOf(' ', 260) : 260);
     return { id: `e${i + 1}`, text: excerpt, truncated: excerpt.length < s.length };
   });
+  evidenceCache.set(profile, evidence);
+  return evidence;
 }
 
 export function fallbackEvidence(profile, query) {
