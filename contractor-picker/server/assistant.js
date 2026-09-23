@@ -85,7 +85,7 @@ export function createAssistantParser({ apiKey = '', model = 'gpt-4o-mini', time
       body: JSON.stringify({
         model,
         store: false,
-        max_output_tokens: 450,
+        max_output_tokens: 350,
         input: [
           {
             role: 'system',
