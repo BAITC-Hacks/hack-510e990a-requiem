@@ -24,7 +24,7 @@
 | language | string/null | Необязательно, значение из справочника |
 | duration_hours | number/null | Необязательно, больше 0 и не больше 24 |
 | locale | string | Необязательно: `ru`, `kk` или `en`; язык ответа и объяснения |
-| current_keywords | string[] | Необязательно: до 8 предпочтений из сообщения ассистенту; учитываются после обязательных фильтров |
+| current_keywords | string[] | Необязательно: до 12 предпочтений из сообщения ассистенту; учитываются после обязательных фильтров и используются для AI-ранжирования всех прошедших кандидатов |
 
 Пустая строка, null или отсутствие необязательного поля означает «не ограничивать». Строки вместо чисел отклоняются. Город, категория и формат очищаются от пробелов по краям. Неизвестные поля не используются.
 
@@ -54,7 +54,7 @@
 - `preference_keywords`: предпочтения, по которым ранжированы объявления.
 - `query`: нормализованные параметры.
 - `dataset_version`: первые 12 символов SHA-256 исходного CSV.
-- `explanation_mode`: ai / catalog / keyword_fallback / fallback / not_needed.
+- `explanation_mode`: ai / catalog / fast_local / keyword_fallback / fallback / not_needed. `ai` means a second model pass semantically ranked eligible listings against extracted preferences; `fast_local` is reserved for explicitly local-only callers.
 - `elapsed_ms`: время обработки на сервере.
 
 `catalog` означает отсутствие настроенного ключа. `fallback` — AI был настроен, но не дал пригодного ответа. `ai` ставится только после успешной проверки всех фрагментов. `not_needed` — карточек нет.
@@ -96,7 +96,7 @@
 }
 ```
 
-Модель возвращает серверу intent, предпочтения в `keywords` и список операций set/clear. Сервер заново проверяет условия по справочникам, затем выбирает кандидатов по совпадению предпочтений с текстом объявлений. Ответ содержит `assistant_status`, `reply`, `resolved_query`, `keywords`, `missing_fields`, `updated_fields`, `recommendation`, `suggestions` и исходный `state_revision`.
+Модель возвращает серверу intent, предпочтения в `keywords` и список операций set/clear. Сервер заново проверяет обязательные условия и выбирает только прошедшие их объявления, затем семантически ранжирует весь список кандидатов по предпочтениям (включая синонимы и детали запроса). Ответ содержит `assistant_status`, `reply`, `resolved_query`, `criteria` (`conditions` и `preferences`), `keywords`, `missing_fields`, `updated_fields`, `recommendation`, `suggestions` и исходный `state_revision`.
 
 - `needs_clarification`: обязательных данных не хватает или изменение неоднозначно;
 - `results`: выполнен обычный проверяемый подбор;

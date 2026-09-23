@@ -56,12 +56,12 @@ export function verifiedSuggestions(profiles, query, result, meta, locale = 'ru'
 }
 
 export function createRecommendationService({ dataset, explain }) {
-  return async function recommend(query, { includeSuggestions = false, keywords = [], locale = 'ru' } = {}) {
-    const preferences = Array.isArray(keywords) ? keywords.slice(0, 8) : [];
+  return async function recommend(query, { includeSuggestions = false, keywords = [], locale = 'ru', localOnly = false } = {}) {
+    const preferences = Array.isArray(keywords) ? keywords.slice(0, 12) : [];
     const result = matchProfiles(dataset.profiles, query, { includeEligible: preferences.length > 0 });
     const { selected, eligible, ...summary } = result;
     const candidates = preferences.length ? eligible : selected;
-    const explanations = await explain(candidates, query, dataset.version, { keywords: preferences, locale });
+    const explanations = await explain(candidates, query, dataset.version, { keywords: preferences, locale, localOnly });
     return {
       ...summary,
       ranking: preferences.length ? 'keyword_relevance' : summary.ranking,

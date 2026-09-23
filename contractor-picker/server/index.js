@@ -48,7 +48,7 @@ export function createApp({ dataset = loadDataset(), explain = createExplainer({
     const input = { ...(req.body || {}) };
     const locale = normalizeLocale(input.locale);
     delete input.locale;
-    const keywords = Array.isArray(input.current_keywords) ? input.current_keywords.slice(0, 8) : [];
+    const keywords = Array.isArray(input.current_keywords) ? input.current_keywords.slice(0, 12) : [];
     delete input.current_keywords;
     const query = validateQuery(input, dataset.meta);
     const result = await recommend(query, { includeSuggestions: true, keywords, locale });
@@ -60,7 +60,7 @@ export function createApp({ dataset = loadDataset(), explain = createExplainer({
     if (!message || message.length > 1000) throw new InputError({ message: 'Введите сообщение длиной от 1 до 1000 символов' });
     const stateRevision = Number.isSafeInteger(req.body?.state_revision) ? req.body.state_revision : 0;
     const locale = normalizeLocale(req.body?.locale);
-    const currentKeywords = Array.isArray(req.body?.current_keywords) ? req.body.current_keywords.slice(0, 8) : [];
+    const currentKeywords = Array.isArray(req.body?.current_keywords) ? req.body.current_keywords.slice(0, 12) : [];
     let intent;
     try {
       intent = await parseAssistant({ message, currentQuery: req.body?.current_query || {}, currentKeywords, meta: dataset.meta, locale });
@@ -79,6 +79,7 @@ export function createApp({ dataset = loadDataset(), explain = createExplainer({
         assistant_status: 'explained',
         reply: text(locale, 'help'),
         resolved_query: draft,
+        criteria: { conditions: draft, preferences: intent.keywords || [] },
         keywords: intent.keywords || [],
         missing_fields: missing,
         updated_fields: updatedFields,
@@ -93,6 +94,7 @@ export function createApp({ dataset = loadDataset(), explain = createExplainer({
         assistant_status: 'needs_clarification',
         reply: clarificationReply(missing, errors, locale),
         resolved_query: draft,
+        criteria: { conditions: draft, preferences: intent.keywords || [] },
         keywords: intent.keywords || [],
         missing_fields: missing,
         updated_fields: updatedFields,
@@ -107,6 +109,7 @@ export function createApp({ dataset = loadDataset(), explain = createExplainer({
         assistant_status: 'needs_clarification',
         reply: text(locale, 'update'),
         resolved_query: draft,
+        criteria: { conditions: draft, preferences: intent.keywords || [] },
         keywords: intent.keywords || [],
         missing_fields: [],
         updated_fields: [],
@@ -119,7 +122,7 @@ export function createApp({ dataset = loadDataset(), explain = createExplainer({
 
     const query = completeQuery(draft, dataset.meta);
     if (!query) throw new InputError({ message: 'Проверьте распознанные условия' });
-    const keywords = Array.isArray(intent.keywords) ? intent.keywords.slice(0, 8) : [];
+    const keywords = Array.isArray(intent.keywords) ? intent.keywords.slice(0, 12) : [];
     const recommendation = await recommend(query, { includeSuggestions: true, keywords, locale });
     let reply;
     if (intent.action === 'compare') reply = comparisonReply(recommendation.cards, locale);
@@ -132,6 +135,7 @@ export function createApp({ dataset = loadDataset(), explain = createExplainer({
       assistant_status: intent.action === 'compare' ? 'explained' : 'results',
       reply,
       resolved_query: query,
+      criteria: { conditions: query, preferences: keywords },
       keywords,
       missing_fields: [],
       updated_fields: updatedFields,

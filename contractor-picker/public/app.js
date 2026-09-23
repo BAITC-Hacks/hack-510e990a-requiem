@@ -99,13 +99,15 @@ function renderAssistantSuggestions(suggestions = []) {
   }
 }
 
-function showAssistantResponse(reply, updatedFields = [], query = {}, suggestions = [], keywords = currentKeywords) {
+function showAssistantResponse(reply, _updatedFields = [], query = {}, suggestions = [], keywords = currentKeywords) {
   $('assistant-response').hidden = false;
   $('assistant-reply').textContent = reply;
   const updates = $('assistant-updates');
   updates.replaceChildren();
-  for (const field of updatedFields) {
-    if (query[field] === undefined || query[field] === null || query[field] === '') continue;
+  const conditionFields = ['city', 'date', 'event_format', 'category', 'budget', 'language', 'duration_hours'];
+  const presentFields = conditionFields.filter(field => query[field] !== undefined && query[field] !== null && query[field] !== '');
+  if (presentFields.length) updates.append(element('span', 'assistant-preferences-label', t('recognized_conditions')));
+  for (const field of presentFields) {
     updates.append(element('span', 'assistant-chip', `${fieldLabel(field)}: ${formatAssistantValue(field, query[field])}`));
   }
   const preferenceList = $('assistant-preferences');
@@ -213,6 +215,7 @@ function render(result) {
   const modes = {
     ai: t('mode_ai'),
     catalog: t('mode_catalog'),
+    fast_local: t('mode_fast_local'),
     keyword_fallback: t('mode_fallback'),
     fallback: t('mode_fallback'),
     not_needed: '',
@@ -265,7 +268,7 @@ async function sendAssistant(forcedMessage) {
     currentKeywords = Array.isArray(result.keywords) ? result.keywords : currentKeywords;
     setDraft(result.resolved_query);
     stateRevision++;
-    showAssistantResponse(result.reply, result.updated_fields, result.resolved_query, result.suggestions, currentKeywords);
+    showAssistantResponse(result.reply, result.updated_fields, result.criteria?.conditions || result.resolved_query, result.suggestions, result.criteria?.preferences || currentKeywords);
     if (result.recommendation) {
       render(result.recommendation);
       if (forcedMessage !== undefined) {
